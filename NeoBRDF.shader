@@ -12,7 +12,7 @@ Shader "zCubed/NeoBRDF"
         [Header(Material)]
         _Roughness ("Roughness", Range(0, 1)) = 0.1
         _Metallic ("Metallic", Range(0, 1)) = 0
-        _Hardness ("Hardness", Range(0, 1)) = 1.0
+        _Hardness ("Light Hardness", Range(0, 1)) = 1.0
     }
     SubShader
     {
@@ -197,8 +197,7 @@ Shader "zCubed/NeoBRDF"
 
                 fixed4 brdf = tex2D(_BRDFTex, float2(brdfX, brdfY));
 
-                fixed3 specular = F * smith * distrib;
-
+                fixed3 specular = F * smith * distrib * _LightColor0;
                 fixed3 brdfFinal = brdf.rgb * atten * _LightColor0 * lerp(1, F0, _Metallic);
                 brdfFinal += specular;
 
@@ -389,7 +388,7 @@ Shader "zCubed/NeoBRDF"
 
                 fixed4 brdf = tex2D(_BRDFTex, float2(brdfX, brdfY));
 
-                fixed3 specular = F * smith * distrib;
+                fixed3 specular = F * smith * distrib * _LightColor0;
 
                 fixed3 brdfFinal = brdf.rgb * atten * _LightColor0 * lerp(1, F0, _Metallic);
                 brdfFinal += specular;
