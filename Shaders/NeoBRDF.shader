@@ -2,9 +2,15 @@ Shader "zCubed/NeoBRDF"
 {
     Properties
     {
+        [Header(Textures)]
         _MainTex ("Texture", 2D) = "white" {}
         _BumpMap ("Normal", 2D) = "bump" {}
+        _EmissionMap ("Emission Map", 2D) = "black" {}
+
         _BRDFTex ("BRDF Ramp", 2D) = "white" {}
+        
+        [Header(Colors)]
+        [HDR] _EmissionColor ("Emission Color", Color) = (1.0, 1.0, 1.0, 1.0)
 
         [Header(Fixes)]
         _NormalDepth ("Normal Depth (tweak for weird normals)", float) = 2
@@ -65,9 +71,10 @@ Shader "zCubed/NeoBRDF"
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
-            sampler2D _MainTex, _BumpMap;
+            sampler2D _MainTex, _BumpMap, _EmissionMap;
             sampler2D _BRDFTex;
             half _Roughness, _Hardness, _Metallic, _NormalDepth;
+            fixed3 _EmissionColor;
 
             #define PI 3.141592654
 
@@ -200,6 +207,7 @@ Shader "zCubed/NeoBRDF"
                 fixed3 specular = F * smith * distrib * _LightColor0;
                 fixed3 brdfFinal = brdf.rgb * atten * _LightColor0 * lerp(1, F0, _Metallic);
                 brdfFinal += specular;
+                brdfFinal += tex2D(_EmissionMap, i.uv).rgb * _EmissionColor;
 
                 color.rgb *= brdfFinal + i.ambient;
 
