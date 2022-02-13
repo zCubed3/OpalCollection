@@ -284,8 +284,9 @@ Shader "zCubed/NeoBRDF"
                 brdfFinal *= ao;
                 brdfFinal += tex2D(_EmissionMap, i.uv).rgb * _EmissionColor;
 
-                fixed3 reflection = SampleSpecular(i.wPos, normal, _Roughness);
-                color.rgb *= brdfFinal + i.ambient + (reflection * F);
+                fixed3 reflection = SampleSpecular(i.wPos, normal, _Roughness) * F;
+                color.rgb *= brdfFinal + i.ambient;
+                color.rgb += reflection;
 
                 UNITY_APPLY_FOG(i.fogCoord, color);
                 return color;
