@@ -6,6 +6,7 @@ Shader "zCubed/NeoBRDF"
         _MainTex ("Texture", 2D) = "white" {}
         _BumpMap ("Normal", 2D) = "bump" {}
         _EmissionMap ("Emission Map", 2D) = "black" {}
+        _OcclusionMap ("Occlusion Map", 2D) = "white" {}
 
         _BRDFTex ("BRDF Ramp", 2D) = "white" {}
         
@@ -42,6 +43,8 @@ Shader "zCubed/NeoBRDF"
             #include "UnityInstancing.cginc"
             #include "AutoLight.cginc"
             #include "UnityLightingCommon.cginc"
+            #include "UnityStandardBRDF.cginc"
+            #include "UnityPBSLighting.cginc"
 
             struct appdata
             {
@@ -71,7 +74,7 @@ Shader "zCubed/NeoBRDF"
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
-            sampler2D _MainTex, _BumpMap, _EmissionMap;
+            sampler2D _MainTex, _BumpMap, _EmissionMap, _OcclusionMap;
             sampler2D _BRDFTex;
             half _Roughness, _Hardness, _Metallic, _NormalDepth;
             fixed3 _EmissionColor;
@@ -127,7 +130,72 @@ Shader "zCubed/NeoBRDF"
             //
             // Helpers
             //
-            //...
+            float3 ProjectDirToBox(float3 vDir, float3 wPos, float3 rPos, float3 rBoxMin, float3 rBoxMax) 
+            {
+                vDir = normalize(vDir);
+
+                rBoxMin -= wPos;
+                rBoxMax -= wPos;
+
+                float x = (vDir.x > 0 ? rBoxMax.x : rBoxMin.x) / vDir.x;
+                float y = (vDir.y > 0 ? rBoxMax.y : rBoxMin.y) / vDir.y;
+                float z = (vDir.z > 0 ? rBoxMax.z : rBoxMin.z) / vDir.z;
+                float scalar = min(min(x, y), z);
+
+                return vDir * scalar + (wPos - rPos);
+            }
+
+
+            fixed3 SampleSpecular(float3 wPos, float3 wNormal, float roughness) 
+            {
+                float3 camDirection = normalize(wPos - _WorldSpaceCameraPos);
+                float3 rDir = reflect(normalize(camDirection), normalize(wNormal));
+
+            #if UNITY_SPECCUBE_BOX_PROJECTION
+                [branch]
+                if (unity_SpecCube0_ProbePosition.w > 0) {
+                    rDir = ProjectDirToBox(rDir, wPos, unity_SpecCube0_ProbePosition, unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
+                }
+            #endif
+
+            	Unity_GlossyEnvironmentData envData;
+                envData.roughness = roughness;
+                envData.reflUVW = rDir;
+
+                fixed3 probe0 = Unity_GlossyEnvironment(
+            		UNITY_PASS_TEXCUBE(unity_SpecCube0), unity_SpecCube0_HDR, envData
+            	);
+
+            #if UNITY_SPECCUBE_BLENDING
+
+                [branch]
+                if (unity_SpecCube0_BoxMin.w >= 0.999999) {
+                    return probe0;
+                } else {
+                
+            #if UNITY_SPECCUBE_BOX_PROJECTION
+
+                    [branch]
+                    if (unity_SpecCube1_ProbePosition.w > 0) {
+                        rDir = ProjectDirToBox(rDir, wPos, unity_SpecCube1_ProbePosition, unity_SpecCube1_BoxMin, unity_SpecCube1_BoxMax);
+                    }
+
+                    envData.reflUVW = rDir;
+
+            #endif
+
+                    fixed3 probe1 = Unity_GlossyEnvironment(
+            	    	UNITY_PASS_TEXCUBE_SAMPLER(unity_SpecCube1, unity_SpecCube0),
+            	    	unity_SpecCube0_HDR, envData
+            	    ); 
+
+                    return lerp(probe1, probe0, unity_SpecCube0_BoxMin.w);
+
+                }
+            #else
+                return probe0;
+            #endif
+            }
 
             v2f vert (appdata v)
             {
@@ -204,12 +272,15 @@ Shader "zCubed/NeoBRDF"
 
                 fixed4 brdf = tex2D(_BRDFTex, float2(brdfX, brdfY));
 
+                half ao = tex2D(_OcclusionMap, i.uv).r;
                 fixed3 specular = F * smith * distrib * _LightColor0;
                 fixed3 brdfFinal = brdf.rgb * atten * _LightColor0 * lerp(1, F0, _Metallic);
                 brdfFinal += specular;
+                brdfFinal *= ao;
                 brdfFinal += tex2D(_EmissionMap, i.uv).rgb * _EmissionColor;
 
-                color.rgb *= brdfFinal + i.ambient;
+                fixed3 reflection = SampleSpecular(i.wPos, normal, _Roughness);
+                color.rgb *= brdfFinal + i.ambient + (reflection * F);
 
                 UNITY_APPLY_FOG(i.fogCoord, color);
                 return color;
@@ -264,7 +335,7 @@ Shader "zCubed/NeoBRDF"
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
-            sampler2D _MainTex, _BumpMap;
+            sampler2D _MainTex, _BumpMap, _OcclusionMap;
             sampler2D _BRDFTex;
             half _Roughness, _Hardness, _Metallic, _NormalDepth;
 
@@ -398,8 +469,10 @@ Shader "zCubed/NeoBRDF"
 
                 fixed3 specular = F * smith * distrib * _LightColor0;
 
+                half ao = tex2D(_OcclusionMap, i.uv).r;
                 fixed3 brdfFinal = brdf.rgb * atten * _LightColor0 * lerp(1, F0, _Metallic);
                 brdfFinal += specular;
+                brdfFinal *= ao;
 
                 color.rgb *= brdfFinal + i.ambient;
 
