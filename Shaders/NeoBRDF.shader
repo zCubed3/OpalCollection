@@ -23,6 +23,11 @@ Shader "zCubed/NeoBRDF"
     }
     SubShader
     {
+        //
+        // Sorry for the length of the shader, I wanted to prioritize readability but because Unity does things so weird I've had to just compress a bunch of code into both passes
+        // Normally this would rely on a shader library I've made but for portability reasons it's all one giant shader
+        //
+
         LOD 100
 
         Pass
