@@ -11,6 +11,7 @@
         _BRDFTex ("BRDF Ramp", 2D) = "white" {}
         
         [Header(Colors)]
+        _Color ("Color", Color) = (1.0, 1.0, 1.0, 1.0)
         [HDR] _EmissionColor ("Emission Color", Color) = (1.0, 1.0, 1.0, 1.0)
 
         [Header(Fixes)]
@@ -89,7 +90,7 @@
             sampler2D _MainTex, _BumpMap, _EmissionMap, _OcclusionMap;
             sampler2D _BRDFTex;
             half _Roughness, _Hardness, _Metallic, _NormalDepth;
-            fixed3 _EmissionColor;
+            fixed3 _EmissionColor, _Color;
 
             #define PI 3.141592654
 
@@ -238,6 +239,7 @@
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
 
                 fixed4 color = tex2D(_MainTex, i.uv);
+                color.rgb *= _Color;
                 
                 float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv));
                 rawNormal.z = _NormalDepth;
@@ -358,6 +360,7 @@
             sampler2D _MainTex, _BumpMap, _OcclusionMap;
             sampler2D _BRDFTex;
             half _Roughness, _Hardness, _Metallic, _NormalDepth;
+            fixed3 _Color;
 
             #define PI 3.141592654
 
@@ -440,6 +443,7 @@
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
 
                 fixed4 color = tex2D(_MainTex, i.uv);
+                color.rgb *= _Color;
                 
                 float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv));
                 rawNormal.z = _NormalDepth;
