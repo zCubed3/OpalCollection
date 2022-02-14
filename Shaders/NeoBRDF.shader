@@ -1,4 +1,4 @@
-Shader "zCubed/NeoBRDF"
+﻿Shader "zCubed/NeoBRDF"
 {
     Properties
     {
@@ -20,14 +20,12 @@ Shader "zCubed/NeoBRDF"
         _Roughness ("Roughness", Range(0, 1)) = 0.1
         _Metallic ("Metallic", Range(0, 1)) = 0
         _Hardness ("Light Hardness", Range(0, 1)) = 1.0
+
+        [Header(Toggles)]
+        [Toggle(RECIEVE_SHADOWS)] _RecieveShadowsToggle("Recieve Shadows", Int) = 1
     }
     SubShader
     {
-        //
-        // Sorry for the length of the shader, I wanted to prioritize readability but because Unity does things so weird I've had to just compress a bunch of code into both passes
-        // Normally this would rely on a shader library I've made but for portability reasons it's all one giant shader
-        //
-
         LOD 100
 
         Pass
@@ -41,6 +39,15 @@ Shader "zCubed/NeoBRDF"
 
             #pragma multi_compile_fog
             #pragma multi_compile_fwdbase
+
+            #pragma shader_feature RECIEVE_SHADOWS
+
+            #ifndef RECIEVE_SHADOWS
+            #undef SHADOWS_SCREEN 
+            #undef SHADOWS_DEPTH
+            #undef SHADOWS_CUBE
+            #undef SHADOWS_SOFT
+            #endif
             
             #pragma target 5.0
 
@@ -305,6 +312,15 @@ Shader "zCubed/NeoBRDF"
 
             #pragma multi_compile_fog
             #pragma multi_compile_fwdadd_fullshadows
+
+            #pragma shader_feature RECIEVE_SHADOWS
+
+            #ifndef RECIEVE_SHADOWS
+            #undef SHADOWS_SCREEN 
+            #undef SHADOWS_DEPTH
+            #undef SHADOWS_CUBE
+            #undef SHADOWS_SOFT
+            #endif
             
             #pragma target 5.0
 
@@ -332,8 +348,6 @@ Shader "zCubed/NeoBRDF"
                 float3 normal : NORMAL0;
                 float3 tangent : NORMAL1;
                 float3 binormal : NORMAL2;
-
-                fixed3 ambient : TEXCOORD3;
 
                 SHADOW_COORDS(4)
                 UNITY_FOG_COORDS(5)
@@ -414,7 +428,6 @@ Shader "zCubed/NeoBRDF"
                 o.binormal = normalize(cross(o.normal, o.tangent));
 
                 o.uv = v.uv;
-                o.ambient = ShadeSH9(float4(UnityObjectToWorldNormal(v.normal), 1));
 
                 TRANSFER_SHADOW(o);
                 UNITY_TRANSFER_FOG(o, o.pos);
@@ -472,7 +485,6 @@ Shader "zCubed/NeoBRDF"
 			    }
 
                 fixed4 brdf = tex2D(_BRDFTex, float2(brdfX, brdfY));
-
                 fixed3 specular = F * smith * distrib * _LightColor0;
 
                 half ao = tex2D(_OcclusionMap, i.uv).r;
@@ -480,13 +492,39 @@ Shader "zCubed/NeoBRDF"
                 brdfFinal += specular;
                 brdfFinal *= ao;
 
-                color.rgb *= brdfFinal + i.ambient;
+                color.rgb *= brdfFinal;
 
                 UNITY_APPLY_FOG(i.fogCoord, color);
                 return color;
             }
             ENDHLSL
         }
+        Pass
+        {
+            Tags {"LightMode"="ShadowCaster"}
+
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile_shadowcaster
+            #include "UnityCG.cginc"
+
+            struct v2f { 
+                V2F_SHADOW_CASTER;
+            };
+
+            v2f vert(appdata_base v)
+            {
+                v2f o;
+                TRANSFER_SHADOW_CASTER_NORMALOFFSET(o)
+                return o;
+            }
+
+            float4 frag(v2f i) : SV_Target
+            {
+                SHADOW_CASTER_FRAGMENT(i)
+            }
+            ENDCG
+        }
     }
-    Fallback "VertexLit"
 }
