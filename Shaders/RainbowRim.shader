@@ -1,4 +1,4 @@
-﻿Shader "zCubed/RainbowRim"
+﻿Shader "Opal/RainbowRim"
 {
     Properties
     {

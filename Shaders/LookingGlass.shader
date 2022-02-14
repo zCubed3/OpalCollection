@@ -1,4 +1,4 @@
-﻿Shader "zCubed/LookingGlass"
+﻿Shader "Opal/LookingGlass"
 {
     Properties
     {

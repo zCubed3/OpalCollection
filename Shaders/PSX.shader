@@ -1,4 +1,4 @@
-﻿Shader "zCubed/PSX"
+﻿Shader "Opal/PSX"
 {
     Properties
     {

@@ -1,4 +1,4 @@
-﻿Shader "zCubed/NeoBRDF"
+﻿Shader "Opal/NeoBRDF"
 {
     Properties
     {

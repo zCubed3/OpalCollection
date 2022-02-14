@@ -1,4 +1,4 @@
-﻿Shader "zCubed/Iridescent"
+﻿Shader "Opal/Iridescent"
 {
     Properties
     {
