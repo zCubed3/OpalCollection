@@ -1,5 +1,5 @@
 //
-// FadeTexMaker.cs - This script provides a tool that lets you bake Unity gradients into textures!
+// RampTexMaker.cs - This script provides a tool that lets you bake Unity gradients into textures!
 //
 
 using System.Collections;
@@ -26,6 +26,7 @@ namespace Opal
         int width = 256;
         int height = 8;
         public OpalBRDFEditor connection = null;
+        string lastSave = "";
 
         public enum RampBakeMode
         {
@@ -89,6 +90,9 @@ namespace Opal
                         curve.SmoothTangents(i, 0F);
                 }
 
+                if (skinGradient == null)
+                    skinGradient = new Gradient();
+
                 curve = EditorGUILayout.CurveField("Falloff Curve", curve);
                 skinGradient = EditorGUILayout.GradientField("Skin Gradient", skinGradient);
 
@@ -99,7 +103,25 @@ namespace Opal
             width = EditorGUILayout.IntField("Output Width", width);
             height = EditorGUILayout.IntField("Output Height", height);
 
-            if (GUILayout.Button("Save Texture"))
+            bool shouldSave = false;
+            bool useLast = false;
+
+            if (!string.IsNullOrEmpty(lastSave))
+            {
+                GUILayout.BeginHorizontal();
+
+                if (GUILayout.Button("Overwrite", EditorStyles.miniButtonLeft))
+                    useLast = shouldSave = true;
+
+                if (GUILayout.Button("Save As New", EditorStyles.miniButtonRight))
+                    shouldSave = true;
+
+                GUILayout.EndHorizontal();
+            }
+            else
+                shouldSave = GUILayout.Button("Save Texture");
+
+            if (shouldSave)
             {
                 Texture2D texture = new Texture2D(width, height, TextureFormat.ARGB32, true);
 
@@ -128,7 +150,11 @@ namespace Opal
                 texture.Apply();
                 byte[] pixels = texture.EncodeToPNG();
 
-                string path = EditorUtility.SaveFilePanel("Save Image", "", "", "png");
+                string path = "";
+                if (useLast && !string.IsNullOrEmpty(lastSave))
+                    path = lastSave;
+                else
+                    path = EditorUtility.SaveFilePanel("Save Image", "", "", "png");
 
                 File.WriteAllBytes(path, pixels);
 
@@ -139,6 +165,8 @@ namespace Opal
                     var cpy = AssetDatabase.LoadAssetAtPath<Texture2D>(relative);
                     connection.newRamp = cpy;
                 }
+
+                lastSave = path;
             }
 
             if (connection != null)

@@ -31,6 +31,26 @@ namespace Opal
             return material.GetInt(property) != 0;
         }
 
+        public static void AskFloat(ref Material material, string property, string name)
+        {
+            GUILayout.BeginHorizontal();
+
+            GUILayout.Label(name, EditorStyles.boldLabel);
+            material.SetFloat(property, EditorGUILayout.FloatField(material.GetFloat(property)));
+
+            GUILayout.EndHorizontal();
+        }
+
+        public static void AskFloatRange(ref Material material, string property, string name, float min, float max)
+        {
+            GUILayout.BeginHorizontal();
+
+            GUILayout.Label(name, EditorStyles.boldLabel);
+            material.SetFloat(property, EditorGUILayout.Slider(material.GetFloat(property), min, max));
+
+            GUILayout.EndHorizontal();
+        }
+
         public static void AskColor(ref Material material, string property, string name)
         {
             GUILayout.BeginHorizontal();

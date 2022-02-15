@@ -14,7 +14,7 @@ namespace Opal
 
         public enum EditorPage
         {
-            BRDF, Maps, Toggles
+            BRDF, PBR, Toggles
         }
 
         public EditorPage activePage = EditorPage.BRDF;
@@ -53,6 +53,7 @@ namespace Opal
                 sssGrayTex = Resources.Load<Texture2D>("BRDF/SSS_gray");
 
             //base.OnGUI(materialEditor, properties);
+            //return;
 
             GUILayout.Label("Opal - BRDF", opalLogoStyle);
 
@@ -61,8 +62,8 @@ namespace Opal
             if (GUILayout.Button("BRDF", EditorStyles.miniButtonLeft))
                 activePage = EditorPage.BRDF;
 
-            if (GUILayout.Button("Maps", EditorStyles.miniButtonMid))
-                activePage = EditorPage.Maps;
+            if (GUILayout.Button("PBR", EditorStyles.miniButtonMid))
+                activePage = EditorPage.PBR;
 
             if (GUILayout.Button("Toggles", EditorStyles.miniButtonRight))
                 activePage = EditorPage.Toggles;
@@ -118,32 +119,47 @@ namespace Opal
                 }
             }
 
-            if (activePage == EditorPage.Maps)
+            if (activePage == EditorPage.PBR)
             {
-                GUILayout.Label("Maps", centerBoldBiggerStyle);
+                GUILayout.Label("PBR", centerBoldBiggerStyle);
+
                 GUILayout.Space(10);
+                GUILayout.Label("Albedo", centerBoldStyle);
 
                 GUIHelpers.AskTexture(ref material, "_MainTex", "Main Texture");
                 GUIHelpers.AskColor(ref material, "_Color", "Color");
 
                 GUILayout.Space(10);
+                GUILayout.Label("Bump Mapping", centerBoldStyle);
 
                 if (GUIHelpers.AskTexture(ref material, "_BumpMap", "Normal Map"))
                     material.EnableKeyword("HAS_BUMP_MAP");
                 else
                     material.DisableKeyword("HAS_BUMP_MAP");
 
+                GUIHelpers.AskFloat(ref material, "_NormalDepth", "Depth");
+
                 GUILayout.Space(10);
+                GUILayout.Label("Emission", centerBoldStyle);
 
                 GUIHelpers.AskTexture(ref material, "_EmissionMap", "Emission Map");
                 GUIHelpers.AskColorHDR(ref material, "_EmissionColor", "Color");
 
                 GUILayout.Space(10);
+                GUILayout.Label("Ambient Occlusion", centerBoldStyle);
 
                 if (GUIHelpers.AskTexture(ref material, "_OcclusionMap", "Occlusion Map"))
                     material.EnableKeyword("HAS_AO_MAP");
                 else
                     material.DisableKeyword("HAS_AO_MAP");
+
+                GUILayout.Space(10);
+
+                GUIHelpers.AskFloatRange(ref material, "_Roughness", "Roughness", 0, 1);
+                GUIHelpers.AskFloatRange(ref material, "_Metallic", "Metallic", 0, 1);
+                GUIHelpers.AskFloatRange(ref material, "_Hardness", "Hardness", 0, 1);
+
+                GUILayout.Space(10);
             }
 
             if (activePage == EditorPage.Toggles)
