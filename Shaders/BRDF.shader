@@ -1,4 +1,4 @@
-﻿Shader "Opal/NeoBRDF"
+﻿Shader "Opal/BRDF"
 {
     Properties
     {
@@ -25,6 +25,9 @@
         [Header(Toggles)]
         [Toggle(RECIEVE_SHADOWS)] _RecieveShadowsToggle("Recieve Shadows", Int) = 1
     }
+    
+    CustomEditor "Opal.OpalBRDFEditor"
+
     SubShader
     {
         LOD 100
