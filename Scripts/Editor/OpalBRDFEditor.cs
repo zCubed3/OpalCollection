@@ -12,6 +12,8 @@ namespace Opal
         public static Texture2D sssSkinTex, sssPlantTex, sssGrayTex;
         public Texture2D newRamp;
 
+        bool rampExplainOut = false;
+
         public enum EditorPage
         {
             BRDF, PBR, Toggles
@@ -56,6 +58,7 @@ namespace Opal
             //return;
 
             GUILayout.Label("Opal - BRDF", opalLogoStyle);
+            GUILayout.Label("IGNORE VRCSDK WARNINGS! DO NOT DISABLE KEYWORDS!", centerBoldStyle);
 
             GUILayout.BeginHorizontal();
 
@@ -80,7 +83,6 @@ namespace Opal
                 GUILayout.Space(10);
 
                 GUILayout.Label("NOTE: Disable shadows for BRDF ramps that light the back! (Ex: Crystal shading)", centerBoldStyle);
-                GUILayout.Label("NOTE2: If you're seeing orbs, change the ramp's texture filtering to 'Clamp'", centerBoldStyle);
 
                 GUILayout.Space(10);
 
@@ -88,7 +90,35 @@ namespace Opal
                     material.SetTexture("_BRDFTex", newRamp);
 
                 if (GUIHelpers.AskTexture(ref material, "_BRDFTex", "BRDF Ramp"))
+                {
                     material.EnableKeyword("HAS_BRDF_MAP");
+
+                    Texture2D texture = material.GetTexture("_BRDFTex") as Texture2D;
+                    if (texture.wrapMode != TextureWrapMode.Clamp)
+                    {
+                        GUILayout.Space(10);
+
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("WARNING: BRDF Ramp's 'wrapMode' is not Clamp!", EditorStyles.boldLabel);
+                        if (GUILayout.Button("Fix"))
+                        {
+                            TextureImporter importer = TextureImporter.GetAtPath(AssetDatabase.GetAssetPath(texture)) as TextureImporter;
+
+                            if (importer == null)
+                                return;
+
+                            importer.wrapMode = TextureWrapMode.Clamp;
+                            importer.isReadable = true;
+
+                            TextureImporterSettings importerSettings = new TextureImporterSettings();
+                            importer.ReadTextureSettings(importerSettings);
+
+                            EditorUtility.SetDirty(importer);
+                            importer.SaveAndReimport();
+                        }
+                        GUILayout.EndHorizontal();
+                    }
+                }
                 else
                     material.DisableKeyword("HAS_BRDF_MAP");
 
@@ -117,6 +147,19 @@ namespace Opal
                     RampTexMaker window = EditorWindow.GetWindow<RampTexMaker>();
                     window.connection = this;
                     window.Show();
+                }
+
+                if (GUILayout.Button("Can't pick?", EditorStyles.miniButton))
+                    rampExplainOut = !rampExplainOut;
+            
+                if (rampExplainOut)
+                {
+                    GUILayout.Label("Preset Help", centerBoldStyle);
+                    GUILayout.Space(10);
+                    GUILayout.Label("None: Softer lighting than Unity Standard, use for softer looking materials");
+                    GUILayout.Label("Skin: Use for skin or anything flesh-like");
+                    GUILayout.Label("Plant: Use for plant like coloring (has green midtones)");
+                    GUILayout.Label("Gray: Use for even softer lighting, for fur and such");
                 }
             }
 
