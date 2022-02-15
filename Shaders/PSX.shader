@@ -6,7 +6,7 @@
         _FakeRes ("Fake Res", Vector) = (320, 240, 0, 0)
         [Enum(UnityEngine.Rendering.CullMode)] _CullMode("Cull Mode", Int) = 1
 
-        [Toggle(UNLIT)] _UnlitToggle ("Unlit", Int) = 0
+        [Toggle(UNLIT)] _UnlitToggle ("Unlit", Int) = 1
     }
     SubShader
     {
@@ -147,7 +147,7 @@
 
             struct v2f
             {
-                float4 vertex : SV_POSITION;
+                float4 pos : SV_POSITION;
                 noperspective float2 uv : TEXCOORD0;
 
                 #ifndef UNLIT
@@ -157,8 +157,9 @@
                 float3 world : TEXCOORD3;
 
                 SHADOW_COORDS(4)
-                UNITY_FOG_COORDS(5)
                 #endif
+                
+                UNITY_FOG_COORDS(5)
             };
 
             sampler2D _MainTex;
@@ -170,14 +171,14 @@
             {
                 v2f o;
 
-                o.vertex = UnityObjectToClipPos(v.vertex);
+                o.pos = UnityObjectToClipPos(v.vertex);
                 
-                float4 snapVertex = o.vertex;
+                float4 snapVertex = o.pos;
                 snapVertex.xyz /= snapVertex.w;
                 snapVertex.xy = floor(_FakeRes.xy * snapVertex.xy) / _FakeRes.xy;
                 snapVertex.xyz *= snapVertex.w;
 
-                o.vertex = snapVertex;
+                o.pos = snapVertex;
                 
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 
