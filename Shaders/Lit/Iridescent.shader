@@ -11,6 +11,7 @@
         _IridescentRamp ("Iridescent Ramp", 2D) = "white" {}
 
         [Header(Colors)]
+        _Color ("Color", Color) = (1.0, 1.0, 1.0, 1.0)
         [HDR] _EmissionColor ("Emission Color", Color) = (1.0, 1.0, 1.0, 1.0)
 
         [Header(Iridescent)]
@@ -86,7 +87,7 @@
             sampler2D _IridescentRamp;
             half _Roughness, _Metallic, _NormalDepth, _SchlickFactor, _FresPow, _ScrollVelocity, _RampIntensity;
             int _Inverted, _Reverse, _Emissive;
-            fixed3 _EmissionColor;
+            fixed3 _Color, _EmissionColor;
 
             #define PI 3.141592654
 
@@ -272,18 +273,17 @@
                 float NDotVgloss = NDotV;
                 NDotVgloss = _Inverted ? 1 - NDotVgloss : NDotVgloss;
                 NDotVgloss = FresnelSchlick(1 - NDotVgloss, (_SchlickFactor).xxx, _FresPow);
-                 
-                float NDotV2 = _Reverse ? 1 - NDotVgloss : NDotVgloss;
 
                 UNITY_LIGHT_ATTENUATION(atten, i, i.wPos)
 
-                fixed4 rampCol = tex2D(_IridescentRamp, float2(NDotV2 + (_Time.x * _ScrollVelocity), 0.5f)) * _RampIntensity;
+                fixed4 rampCol = tex2D(_IridescentRamp, float2(NDotVgloss + (_Time.x * _ScrollVelocity), 0.5f)) * _RampIntensity;
                 
                 fixed3 reflection = SampleSpecular(i.wPos, normal, _Roughness) * F;
                 fixed3 ambient = color.rgb * i.ambient;
                 fixed3 specular = F * smith * distrib * _LightColor0;
                 fixed3 emission = (tex2D(_EmissionMap, i.uv) * _EmissionColor) + (rampCol * _Emissive);
 
+                color.rgb *= _Color;
                 color.rgb = (color.rgb + rampCol) * atten * NDotL * ao * _LightColor0;
                 color.rgb += ambient + specular + reflection + emission;
 
@@ -343,7 +343,7 @@
             sampler2D _IridescentRamp;
             half _Roughness, _Metallic, _NormalDepth, _SchlickFactor, _FresPow, _ScrollVelocity, _RampIntensity;
             int _Inverted, _Reverse, _Emissive;
-            fixed3 _EmissionColor;
+            fixed3 _Color, _EmissionColor;
 
             #define PI 3.141592654
 
@@ -426,7 +426,7 @@
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
 
                 fixed4 color = tex2D(_MainTex, i.uv);
-                
+
                 float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv));
                 rawNormal.z = _NormalDepth;
 
@@ -468,15 +468,14 @@
                 float NDotVgloss = NDotV;
                 NDotVgloss = _Inverted ? 1 - NDotVgloss : NDotVgloss;
                 NDotVgloss = FresnelSchlick(1 - NDotVgloss, (_SchlickFactor).xxx, _FresPow);
-                 
-                float NDotV2 = _Reverse ? 1 - NDotVgloss : NDotVgloss;
                 
-                fixed4 rampCol = tex2D(_IridescentRamp, float2(NDotV2 + (_Time.x * _ScrollVelocity), 0.5f)) * _RampIntensity;
+                fixed4 rampCol = tex2D(_IridescentRamp, float2(NDotVgloss + (_Time.x * _ScrollVelocity), 0.5f)) * _RampIntensity;
 #endif
 
                 fixed3 specular = F * smith * distrib * _LightColor0;
 
-                color.rgb = (color.rgb + rampCol) * atten * NDotL * ao * _LightColor0;
+                color.rgb *= _Color;
+                color.rgb = (color.rgb + rampCol.rgb) * atten * NDotL * ao * _LightColor0;
                 color.rgb += specular;
 
                 UNITY_APPLY_FOG(i.fogCoord, color);
