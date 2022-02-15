@@ -45,6 +45,9 @@
             #pragma multi_compile_fwdbase
 
             #pragma shader_feature RECIEVE_SHADOWS
+            #pragma shader_feature HAS_BRDF_MAP
+            #pragma shader_feature HAS_BUMP_MAP
+            #pragma shader_feature HAS_AO_MAP
 
             #ifndef RECIEVE_SHADOWS
             #undef SHADOWS_SCREEN 
@@ -79,8 +82,11 @@
                 float3 wPos : TEXCOORD1;
 
                 float3 normal : NORMAL0;
+                
+            #ifdef HAS_BUMP_MAP
                 float3 tangent : NORMAL1;
                 float3 binormal : NORMAL2;
+            #endif
 
                 fixed3 ambient : TEXCOORD3;
 
@@ -224,9 +230,17 @@
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.wPos = mul(unity_ObjectToWorld, v.vertex);
 
+                #ifdef HAS_BUMP_MAP
+
                 o.normal = normalize(UnityObjectToWorldNormal(v.normal));
                 o.tangent = normalize(UnityObjectToWorldDir(v.tangent));
                 o.binormal = normalize(cross(o.normal, o.tangent));
+
+                #else
+
+                o.normal = UnityObjectToWorldNormal(v.normal);
+                
+                #endif
 
                 o.uv = v.uv;
                 o.ambient = ShadeSH9(float4(UnityObjectToWorldNormal(v.normal), 1));
@@ -243,7 +257,8 @@
 
                 fixed4 color = tex2D(_MainTex, i.uv);
                 color.rgb *= _Color;
-                
+
+            #ifdef HAS_BUMP_MAP         
                 float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv));
                 rawNormal.z = _NormalDepth;
 
@@ -254,6 +269,10 @@
 				);
 
                 half3 normal = normalize(mul(rawNormal, tan2World));
+            #else
+                half3 normal = normalize(i.normal);
+            #endif
+
                 half3 vDir = normalize(_WorldSpaceCameraPos - i.wPos);
 
                 half3 light = _WorldSpaceLightPos0;
@@ -277,6 +296,7 @@
                 
                 UNITY_LIGHT_ATTENUATION(atten, i, i.wPos)
 
+            #ifdef HAS_BRDF_MAP
                 float brdfX = 0;
                 float brdfY = NDotV;
 
@@ -287,9 +307,20 @@
                     brdfX = saturate((rawNDotL + 1) * 0.5);
 			    }
 
-                fixed4 brdf = tex2D(_BRDFTex, float2(brdfX, brdfY));
+                // To be safe
+                brdfX = saturate(brdfX);
 
+                fixed4 brdf = tex2D(_BRDFTex, float2(brdfX, brdfY));
+            #else
+                fixed4 brdf = saturate(rawNDotL);
+            #endif
+
+            #ifdef HAS_AO_MAP 
                 half ao = tex2D(_OcclusionMap, i.uv).r;
+            #else
+                half ao = 1;
+            #endif
+
                 fixed3 specular = F * smith * distrib * _LightColor0;
                 fixed3 brdfFinal = brdf.rgb * atten * _LightColor0 * lerp(1, F0, _Metallic);
                 brdfFinal += specular;
@@ -319,6 +350,9 @@
             #pragma multi_compile_fwdadd_fullshadows
 
             #pragma shader_feature RECIEVE_SHADOWS
+            #pragma shader_feature HAS_BRDF_MAP
+            #pragma shader_feature HAS_BUMP_MAP
+            #pragma shader_feature HAS_AO_MAP
 
             #ifndef RECIEVE_SHADOWS
             #undef SHADOWS_SCREEN 
@@ -351,8 +385,11 @@
                 float3 wPos : TEXCOORD1;
 
                 float3 normal : NORMAL0;
+
+            #ifdef HAS_BUMP_MAP
                 float3 tangent : NORMAL1;
                 float3 binormal : NORMAL2;
+            #endif
 
                 SHADOW_COORDS(4)
                 UNITY_FOG_COORDS(5)
@@ -429,9 +466,13 @@
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.wPos = mul(unity_ObjectToWorld, v.vertex);
 
+            #ifdef HAS_BUMP_MAP
                 o.normal = normalize(UnityObjectToWorldNormal(v.normal));
                 o.tangent = normalize(UnityObjectToWorldDir(v.tangent));
                 o.binormal = normalize(cross(o.normal, o.tangent));
+            #else
+                o.normal = UnityObjectToWorldNormal(v.normal);
+            #endif
 
                 o.uv = v.uv;
 
@@ -448,6 +489,7 @@
                 fixed4 color = tex2D(_MainTex, i.uv);
                 color.rgb *= _Color;
                 
+            #ifdef HAS_BUMP_MAP                
                 float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv));
                 rawNormal.z = _NormalDepth;
 
@@ -458,6 +500,10 @@
 				);
 
                 half3 normal = normalize(mul(rawNormal, tan2World));
+            #else
+                half3 normal = normalize(i.normal);
+            #endif
+
                 half3 vDir = normalize(_WorldSpaceCameraPos - i.wPos);
 
                 half3 light = _WorldSpaceLightPos0;
@@ -481,6 +527,7 @@
                 
                 UNITY_LIGHT_ATTENUATION(atten, i, i.wPos)
 
+            #ifdef HAS_BRDF_MAP
                 float brdfX = 0;
                 float brdfY = NDotV;
 
@@ -491,10 +538,21 @@
                     brdfX = saturate((rawNDotL + 1) * 0.5);
 			    }
 
+                // To be safe
+                brdfX = saturate(brdfX);
+
                 fixed4 brdf = tex2D(_BRDFTex, float2(brdfX, brdfY));
+            #else
+                fixed4 brdf = saturate(rawNDotL);
+            #endif
+
                 fixed3 specular = F * smith * distrib * _LightColor0;
 
+            #ifdef HAS_AO_MAP 
                 half ao = tex2D(_OcclusionMap, i.uv).r;
+            #else
+                half ao = 1;
+            #endif
                 fixed3 brdfFinal = brdf.rgb * atten * _LightColor0 * lerp(1, F0, _Metallic);
                 brdfFinal += specular;
                 brdfFinal *= ao;
