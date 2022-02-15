@@ -1,4 +1,4 @@
-﻿Shader "Opal/RainbowRim"
+﻿Shader "Opal/Misc/RainbowRim"
 {
     Properties
     {

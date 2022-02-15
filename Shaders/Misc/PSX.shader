@@ -1,4 +1,4 @@
-﻿Shader "Opal/PSX"
+﻿Shader "Opal/Misc/PSX"
 {
     Properties
     {

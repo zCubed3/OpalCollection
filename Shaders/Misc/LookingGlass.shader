@@ -1,4 +1,4 @@
-﻿Shader "Opal/LookingGlass"
+﻿Shader "Opal/Misc/LookingGlass"
 {
     Properties
     {
@@ -36,10 +36,11 @@
             #pragma target 5.0
 
             #include "UnityCG.cginc"
-            #include "UnityInstancing.cginc"
-
-            #include "Assets/Shaders/Unfuck.cginc"
-
+            #include "UnityLightingCommon.cginc"
+            #include "AutoLight.cginc"
+            #include "UnityStandardBRDF.cginc"
+            #include "UnityPBSLighting.cginc"
+            #include "AutoLight.cginc"
 
             struct appdata
             {
@@ -69,6 +70,124 @@
             half3 _SpinSpeed;
             half _FresnelPow, _MinLOD, _Roughness, _InterRefractPow;
             fixed3 _EdgeGlow;
+
+            #define PI 3.141592654
+
+            //
+            // Approximations
+            //
+            // https://learnopengl.com/PBR/IBL/Diffuse-irradiance
+            float3 FresnelSchlick(float cosTheta, float3 F0, float fPow) {
+               return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), fPow);
+            }
+
+            float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness) {
+               return F0 + (max((1.0 - roughness).xxx, F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+            }
+
+            //
+            // Scattering
+            //
+            float DistributionGGX(float3 N, float3 H, float a)
+            {
+               float a2     = a*a;
+               float NdotH  = max(dot(N, H), 0.0);
+               float NdotH2 = NdotH*NdotH;
+
+               float nom    = a2;
+               float denom  = (NdotH2 * (a2 - 1.0) + 1.0);
+               denom        = PI * denom * denom;
+
+               return nom / denom;
+            }
+
+            float GeometrySchlickGGX(float NdotV, float k)
+            {
+                float nom   = NdotV;
+                float denom = NdotV * (1.0 - k) + k;
+
+                return nom / denom;
+            }
+
+            float GeometrySmith(float3 N, float3 V, float3 L, float k)
+            {
+                float NdotV = max(dot(N, V), 0.0);
+                float NdotL = max(dot(N, L), 0.0);
+                float ggx1 = GeometrySchlickGGX(NdotV, k);
+                float ggx2 = GeometrySchlickGGX(NdotL, k);
+
+                return ggx1 * ggx2;
+            }
+
+            //
+            // Helpers
+            //
+            float3 ProjectDirToBox(float3 vDir, float3 wPos, float3 rPos, float3 rBoxMin, float3 rBoxMax) 
+            {
+                vDir = normalize(vDir);
+
+                rBoxMin -= wPos;
+                rBoxMax -= wPos;
+
+                float x = (vDir.x > 0 ? rBoxMax.x : rBoxMin.x) / vDir.x;
+                float y = (vDir.y > 0 ? rBoxMax.y : rBoxMin.y) / vDir.y;
+                float z = (vDir.z > 0 ? rBoxMax.z : rBoxMin.z) / vDir.z;
+                float scalar = min(min(x, y), z);
+
+                return vDir * scalar + (wPos - rPos);
+            }
+
+
+            fixed3 SampleSpecular(float3 wPos, float3 wNormal, float roughness) 
+            {
+                float3 camDirection = normalize(wPos - _WorldSpaceCameraPos);
+                float3 rDir = reflect(normalize(camDirection), normalize(wNormal));
+
+            #if UNITY_SPECCUBE_BOX_PROJECTION
+                [branch]
+                if (unity_SpecCube0_ProbePosition.w > 0) {
+                    rDir = ProjectDirToBox(rDir, wPos, unity_SpecCube0_ProbePosition, unity_SpecCube0_BoxMin, unity_SpecCube0_BoxMax);
+                }
+            #endif
+
+            	Unity_GlossyEnvironmentData envData;
+                envData.roughness = roughness;
+                envData.reflUVW = rDir;
+
+                fixed3 probe0 = Unity_GlossyEnvironment(
+            		UNITY_PASS_TEXCUBE(unity_SpecCube0), unity_SpecCube0_HDR, envData
+            	);
+
+            #if UNITY_SPECCUBE_BLENDING
+
+                [branch]
+                if (unity_SpecCube0_BoxMin.w >= 0.999999) {
+                    return probe0;
+                } else {
+                
+            #if UNITY_SPECCUBE_BOX_PROJECTION
+
+                    [branch]
+                    if (unity_SpecCube1_ProbePosition.w > 0) {
+                        rDir = ProjectDirToBox(rDir, wPos, unity_SpecCube1_ProbePosition, unity_SpecCube1_BoxMin, unity_SpecCube1_BoxMax);
+                    }
+
+                    envData.reflUVW = rDir;
+
+            #endif
+
+                    fixed3 probe1 = Unity_GlossyEnvironment(
+            	    	UNITY_PASS_TEXCUBE_SAMPLER(unity_SpecCube1, unity_SpecCube0),
+            	    	unity_SpecCube0_HDR, envData
+            	    ); 
+
+                    return lerp(probe1, probe0, unity_SpecCube0_BoxMin.w);
+
+                }
+            #else
+                return probe0;
+            #endif
+            }
 
             v2f vert (appdata v)
             {
@@ -186,7 +305,9 @@
             #include "UnityCG.cginc"
             #include "UnityLightingCommon.cginc"
             #include "AutoLight.cginc"
-            #include "Assets/Shaders/Unfuck.cginc"
+            #include "UnityStandardBRDF.cginc"
+            #include "UnityPBSLighting.cginc"
+            #include "AutoLight.cginc"
 
 
             struct appdata
@@ -212,6 +333,54 @@
             samplerCUBE _MainTex;
             half3 _SpinSpeed;
             half _FresnelPow, _MinLOD, _Roughness, _BlinnPhongPow;
+
+            #define PI 3.141592654
+
+            //
+            // Approximations
+            //
+            // https://learnopengl.com/PBR/IBL/Diffuse-irradiance
+            float3 FresnelSchlick(float cosTheta, float3 F0, float fPow) {
+               return F0 + (1.0 - F0) * pow(max(1.0 - cosTheta, 0.0), fPow);
+            }
+
+            float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness) {
+               return F0 + (max((1.0 - roughness).xxx, F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+            }
+
+            //
+            // Scattering
+            //
+            float DistributionGGX(float3 N, float3 H, float a)
+            {
+               float a2     = a*a;
+               float NdotH  = max(dot(N, H), 0.0);
+               float NdotH2 = NdotH*NdotH;
+
+               float nom    = a2;
+               float denom  = (NdotH2 * (a2 - 1.0) + 1.0);
+               denom        = PI * denom * denom;
+
+               return nom / denom;
+            }
+
+            float GeometrySchlickGGX(float NdotV, float k)
+            {
+                float nom   = NdotV;
+                float denom = NdotV * (1.0 - k) + k;
+
+                return nom / denom;
+            }
+
+            float GeometrySmith(float3 N, float3 V, float3 L, float k)
+            {
+                float NdotV = max(dot(N, V), 0.0);
+                float NdotL = max(dot(N, L), 0.0);
+                float ggx1 = GeometrySchlickGGX(NdotV, k);
+                float ggx2 = GeometrySchlickGGX(NdotL, k);
+
+                return ggx1 * ggx2;
+            }
 
             v2f vert (appdata v)
             {

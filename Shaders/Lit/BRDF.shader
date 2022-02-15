@@ -1,4 +1,4 @@
-﻿Shader "Opal/Iridescent"
+﻿Shader "Opal/Lit/BRDF"
 {
     Properties
     {
@@ -8,19 +8,11 @@
         _EmissionMap ("Emission Map", 2D) = "black" {}
         _OcclusionMap ("Occlusion Map", 2D) = "white" {}
 
-        _IridescentRamp ("Iridescent Ramp", 2D) = "white" {}
-
+        _BRDFTex ("BRDF Ramp", 2D) = "white" {}
+        
         [Header(Colors)]
+        _Color ("Color", Color) = (1.0, 1.0, 1.0, 1.0)
         [HDR] _EmissionColor ("Emission Color", Color) = (1.0, 1.0, 1.0, 1.0)
-
-        [Header(Iridescent)]
-        [Toggle] _Inverted ("Inverted", int) = 0
-        [Toggle] _Reverse ("Reversed", int) = 0
-        [Toggle(_EMISSIVE_ON)] _Emissive ("Emissive", int) = 0
-        _SchlickFactor ("IOR (careful changing this!)", float) = 0.04
-        _FresPow ("Fresnel Power", float) = 1.0
-        _ScrollVelocity ("Scroll Velocity", float) = 0
-        _RampIntensity ("Ramp Intensity", float) = 1
 
         [Header(Fixes)]
         _NormalDepth ("Normal Depth (tweak for weird normals)", float) = 2
@@ -28,7 +20,14 @@
         [Header(Material)]
         _Roughness ("Roughness", Range(0, 1)) = 0.1
         _Metallic ("Metallic", Range(0, 1)) = 0
+        _Hardness ("Light Hardness", Range(0, 1)) = 1.0
+
+        [Header(Toggles)]
+        [Toggle(RECIEVE_SHADOWS)] _RecieveShadowsToggle("Recieve Shadows", Int) = 1
     }
+    
+    CustomEditor "Opal.OpalBRDFEditor"
+
     SubShader
     {
         LOD 100
@@ -44,6 +43,18 @@
 
             #pragma multi_compile_fog
             #pragma multi_compile_fwdbase
+
+            #pragma shader_feature RECIEVE_SHADOWS
+            #pragma shader_feature HAS_BRDF_MAP
+            #pragma shader_feature HAS_BUMP_MAP
+            #pragma shader_feature HAS_AO_MAP
+
+            #ifndef RECIEVE_SHADOWS
+            #undef SHADOWS_SCREEN 
+            #undef SHADOWS_DEPTH
+            #undef SHADOWS_CUBE
+            #undef SHADOWS_SOFT
+            #endif
             
             #pragma target 5.0
 
@@ -71,8 +82,11 @@
                 float3 wPos : TEXCOORD1;
 
                 float3 normal : NORMAL0;
+                
+            #ifdef HAS_BUMP_MAP
                 float3 tangent : NORMAL1;
                 float3 binormal : NORMAL2;
+            #endif
 
                 fixed3 ambient : TEXCOORD3;
 
@@ -83,10 +97,9 @@
             };
 
             sampler2D _MainTex, _BumpMap, _EmissionMap, _OcclusionMap;
-            sampler2D _IridescentRamp;
-            half _Roughness, _Metallic, _NormalDepth, _SchlickFactor, _FresPow, _ScrollVelocity, _RampIntensity;
-            int _Inverted, _Reverse, _Emissive;
-            fixed3 _EmissionColor;
+            sampler2D _BRDFTex;
+            half _Roughness, _Hardness, _Metallic, _NormalDepth;
+            fixed3 _EmissionColor, _Color;
 
             #define PI 3.141592654
 
@@ -217,9 +230,17 @@
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.wPos = mul(unity_ObjectToWorld, v.vertex);
 
+                #ifdef HAS_BUMP_MAP
+
                 o.normal = normalize(UnityObjectToWorldNormal(v.normal));
                 o.tangent = normalize(UnityObjectToWorldDir(v.tangent));
                 o.binormal = normalize(cross(o.normal, o.tangent));
+
+                #else
+
+                o.normal = UnityObjectToWorldNormal(v.normal);
+                
+                #endif
 
                 o.uv = v.uv;
                 o.ambient = ShadeSH9(float4(UnityObjectToWorldNormal(v.normal), 1));
@@ -235,7 +256,9 @@
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
 
                 fixed4 color = tex2D(_MainTex, i.uv);
-                
+                color.rgb *= _Color;
+
+            #ifdef HAS_BUMP_MAP         
                 float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv));
                 rawNormal.z = _NormalDepth;
 
@@ -246,6 +269,10 @@
 				);
 
                 half3 normal = normalize(mul(rawNormal, tan2World));
+            #else
+                half3 normal = normalize(i.normal);
+            #endif
+
                 half3 vDir = normalize(_WorldSpaceCameraPos - i.wPos);
 
                 half3 light = _WorldSpaceLightPos0;
@@ -256,7 +283,7 @@
                 half3 halfway = normalize(light + vDir);
                 half NDotH = saturate(dot(normal, halfway));
                 half NDotV = saturate(dot(normal, vDir));
-                half NDotL = saturate(dot(normal, light));
+                half rawNDotL = dot(normal, light);
 
                 half clampMetallic = min(1.0, max(0.001, _Metallic));
                 half clampRoughness = min(1.0, max(0.001, _Roughness));
@@ -267,25 +294,42 @@
                 half distrib = DistributionGGX(normal, halfway, clampRoughness);
                 half smith = GeometrySmith(normal, vDir, light, clampRoughness);
                 
-                half ao = tex2D(_OcclusionMap, i.uv).r;
-
-                float NDotVgloss = NDotV;
-                NDotVgloss = _Inverted ? 1 - NDotVgloss : NDotVgloss;
-                NDotVgloss = FresnelSchlick(1 - NDotVgloss, (_SchlickFactor).xxx, _FresPow);
-                 
-                float NDotV2 = _Reverse ? 1 - NDotVgloss : NDotVgloss;
-
                 UNITY_LIGHT_ATTENUATION(atten, i, i.wPos)
 
-                fixed4 rampCol = tex2D(_IridescentRamp, float2(NDotV2 + (_Time.x * _ScrollVelocity), 0.5f)) * _RampIntensity;
-                
-                fixed3 reflection = SampleSpecular(i.wPos, normal, _Roughness) * F;
-                fixed3 ambient = color.rgb * i.ambient;
-                fixed3 specular = F * smith * distrib * _LightColor0;
-                fixed3 emission = (tex2D(_EmissionMap, i.uv) * _EmissionColor) + (rampCol * _Emissive);
+            #ifdef HAS_BRDF_MAP
+                float brdfX = 0;
+                float brdfY = NDotV;
 
-                color.rgb = (color.rgb + rampCol) * atten * NDotL * ao * _LightColor0;
-                color.rgb += ambient + specular + reflection + emission;
+                if (_Hardness < 1){
+			        float HardnessHalfed = _Hardness * 0.5;
+			        brdfX = max(0.0, ((rawNDotL * HardnessHalfed) + 1 - HardnessHalfed));	
+                } else {			
+                    brdfX = saturate((rawNDotL + 1) * 0.5);
+			    }
+
+                // To be safe
+                brdfX = saturate(brdfX);
+
+                fixed4 brdf = tex2D(_BRDFTex, float2(brdfX, brdfY));
+            #else
+                fixed4 brdf = saturate(rawNDotL);
+            #endif
+
+            #ifdef HAS_AO_MAP 
+                half ao = tex2D(_OcclusionMap, i.uv).r;
+            #else
+                half ao = 1;
+            #endif
+
+                fixed3 specular = F * smith * distrib * _LightColor0;
+                fixed3 brdfFinal = brdf.rgb * atten * _LightColor0 * lerp(1, F0, _Metallic);
+                brdfFinal += specular;
+                brdfFinal *= ao;
+                brdfFinal += tex2D(_EmissionMap, i.uv).rgb * _EmissionColor;
+
+                fixed3 reflection = SampleSpecular(i.wPos, normal, _Roughness) * F;
+                color.rgb *= brdfFinal + i.ambient;
+                color.rgb += reflection;
 
                 UNITY_APPLY_FOG(i.fogCoord, color);
                 return color;
@@ -304,8 +348,19 @@
 
             #pragma multi_compile_fog
             #pragma multi_compile_fwdadd_fullshadows
-            #pragma shader_feature _EMISSIVE_ON
 
+            #pragma shader_feature RECIEVE_SHADOWS
+            #pragma shader_feature HAS_BRDF_MAP
+            #pragma shader_feature HAS_BUMP_MAP
+            #pragma shader_feature HAS_AO_MAP
+
+            #ifndef RECIEVE_SHADOWS
+            #undef SHADOWS_SCREEN 
+            #undef SHADOWS_DEPTH
+            #undef SHADOWS_CUBE
+            #undef SHADOWS_SOFT
+            #endif
+            
             #pragma target 5.0
 
             #include "UnityCG.cginc"
@@ -330,8 +385,11 @@
                 float3 wPos : TEXCOORD1;
 
                 float3 normal : NORMAL0;
+
+            #ifdef HAS_BUMP_MAP
                 float3 tangent : NORMAL1;
                 float3 binormal : NORMAL2;
+            #endif
 
                 SHADOW_COORDS(4)
                 UNITY_FOG_COORDS(5)
@@ -339,11 +397,10 @@
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
-            sampler2D _MainTex, _BumpMap, _EmissionMap, _OcclusionMap;
-            sampler2D _IridescentRamp;
-            half _Roughness, _Metallic, _NormalDepth, _SchlickFactor, _FresPow, _ScrollVelocity, _RampIntensity;
-            int _Inverted, _Reverse, _Emissive;
-            fixed3 _EmissionColor;
+            sampler2D _MainTex, _BumpMap, _OcclusionMap;
+            sampler2D _BRDFTex;
+            half _Roughness, _Hardness, _Metallic, _NormalDepth;
+            fixed3 _Color;
 
             #define PI 3.141592654
 
@@ -409,9 +466,13 @@
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.wPos = mul(unity_ObjectToWorld, v.vertex);
 
+            #ifdef HAS_BUMP_MAP
                 o.normal = normalize(UnityObjectToWorldNormal(v.normal));
                 o.tangent = normalize(UnityObjectToWorldDir(v.tangent));
                 o.binormal = normalize(cross(o.normal, o.tangent));
+            #else
+                o.normal = UnityObjectToWorldNormal(v.normal);
+            #endif
 
                 o.uv = v.uv;
 
@@ -426,7 +487,9 @@
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
 
                 fixed4 color = tex2D(_MainTex, i.uv);
+                color.rgb *= _Color;
                 
+            #ifdef HAS_BUMP_MAP                
                 float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv));
                 rawNormal.z = _NormalDepth;
 
@@ -437,6 +500,10 @@
 				);
 
                 half3 normal = normalize(mul(rawNormal, tan2World));
+            #else
+                half3 normal = normalize(i.normal);
+            #endif
+
                 half3 vDir = normalize(_WorldSpaceCameraPos - i.wPos);
 
                 half3 light = _WorldSpaceLightPos0;
@@ -447,7 +514,7 @@
                 half3 halfway = normalize(light + vDir);
                 half NDotH = saturate(dot(normal, halfway));
                 half NDotV = saturate(dot(normal, vDir));
-                half NDotL = saturate(dot(normal, light));
+                half rawNDotL = dot(normal, light);
 
                 half clampMetallic = min(1.0, max(0.001, _Metallic));
                 half clampRoughness = min(1.0, max(0.001, _Roughness));
@@ -458,26 +525,39 @@
                 half distrib = DistributionGGX(normal, halfway, clampRoughness);
                 half smith = GeometrySmith(normal, vDir, light, clampRoughness);
                 
-                half ao = tex2D(_OcclusionMap, i.uv).r;
-
                 UNITY_LIGHT_ATTENUATION(atten, i, i.wPos)
 
-#ifdef _EMISSIVE_ON
-                fixed4 rampCol = 0;
-#else
-                float NDotVgloss = NDotV;
-                NDotVgloss = _Inverted ? 1 - NDotVgloss : NDotVgloss;
-                NDotVgloss = FresnelSchlick(1 - NDotVgloss, (_SchlickFactor).xxx, _FresPow);
-                 
-                float NDotV2 = _Reverse ? 1 - NDotVgloss : NDotVgloss;
-                
-                fixed4 rampCol = tex2D(_IridescentRamp, float2(NDotV2 + (_Time.x * _ScrollVelocity), 0.5f)) * _RampIntensity;
-#endif
+            #ifdef HAS_BRDF_MAP
+                float brdfX = 0;
+                float brdfY = NDotV;
+
+                if (_Hardness < 1){
+			        float HardnessHalfed = _Hardness * 0.5;
+			        brdfX = max(0.0, ((rawNDotL * HardnessHalfed) + 1 - HardnessHalfed));	
+                } else {			
+                    brdfX = saturate((rawNDotL + 1) * 0.5);
+			    }
+
+                // To be safe
+                brdfX = saturate(brdfX);
+
+                fixed4 brdf = tex2D(_BRDFTex, float2(brdfX, brdfY));
+            #else
+                fixed4 brdf = saturate(rawNDotL);
+            #endif
 
                 fixed3 specular = F * smith * distrib * _LightColor0;
 
-                color.rgb = (color.rgb + rampCol) * atten * NDotL * ao * _LightColor0;
-                color.rgb += specular;
+            #ifdef HAS_AO_MAP 
+                half ao = tex2D(_OcclusionMap, i.uv).r;
+            #else
+                half ao = 1;
+            #endif
+                fixed3 brdfFinal = brdf.rgb * atten * _LightColor0 * lerp(1, F0, _Metallic);
+                brdfFinal += specular;
+                brdfFinal *= ao;
+
+                color.rgb *= brdfFinal;
 
                 UNITY_APPLY_FOG(i.fogCoord, color);
                 return color;
