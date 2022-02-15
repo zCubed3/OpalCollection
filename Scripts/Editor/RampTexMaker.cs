@@ -21,16 +21,20 @@ namespace Opal
             window.Show();
         }
 
-        Gradient gradient = null, skinGradient = null;
+        Gradient gradient = null;
+        Gradient skinGradient = null;
+        Gradient xGradient, yGradient = null;
         AnimationCurve curve = null;
         int width = 256;
         int height = 8;
         public OpalBRDFEditor connection = null;
         string lastSave = "";
+        GUIStyle centerBoldStyle = null;
 
         public enum RampBakeMode
         {
             FalloffFunction,
+            XYGradient,
             Gradient
         };
 
@@ -38,27 +42,42 @@ namespace Opal
 
         private void OnGUI()
         {
+            if (centerBoldStyle == null)
+            {
+                centerBoldStyle = new GUIStyle(EditorStyles.boldLabel);
+                centerBoldStyle.alignment = TextAnchor.MiddleCenter;
+            }
+
+            GUILayout.Label("Modes", centerBoldStyle);
+
             GUILayout.BeginHorizontal();
 
             if (GUILayout.Button("Gradient Baker", EditorStyles.miniButtonLeft))
                 mode = RampBakeMode.Gradient;
+
+            if (GUILayout.Button("XY Gradient Baker", EditorStyles.miniButtonMid))
+                mode = RampBakeMode.XYGradient;
 
             if (GUILayout.Button("Curve Baker", EditorStyles.miniButtonRight))
                 mode = RampBakeMode.FalloffFunction;
 
             GUILayout.EndHorizontal();
 
+            GUILayout.Space(5);
+
             if (mode == RampBakeMode.Gradient)
             {
+                GUILayout.Label("Gradient Mode", centerBoldStyle);
+
                 if (gradient == null)
                 {
                     gradient = new Gradient();
                     gradient.SetKeys(
                         new GradientColorKey[] {
-                            new GradientColorKey(Color.black, 0), new GradientColorKey(Color.black, 0.45F), new GradientColorKey(Color.white, 1) 
+                            new GradientColorKey(Color.black, 0), new GradientColorKey(Color.black, 0.45F), new GradientColorKey(Color.white, 1)
                         },
-                        new GradientAlphaKey[] { 
-                            new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1) 
+                        new GradientAlphaKey[] {
+                            new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1)
                         }
                     );
                 }
@@ -68,9 +87,55 @@ namespace Opal
                 if (GUILayout.Button("Reset Gradient"))
                     gradient = null;
             }
-            
+
+            if (mode == RampBakeMode.XYGradient)
+            {
+                GUILayout.Label("XY Gradient Mode", centerBoldStyle);
+
+                if (xGradient == null)
+                {
+                    xGradient = new Gradient();
+                    xGradient.SetKeys(
+                        new GradientColorKey[] {
+                            new GradientColorKey(Color.black, 0), new GradientColorKey(Color.black, 0.45F), new GradientColorKey(Color.white, 1)
+                        },
+                        new GradientAlphaKey[] {
+                            new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1)
+                        }
+                    );
+                }
+
+                if (yGradient == null)
+                {
+                    yGradient = new Gradient();
+                    yGradient.SetKeys(
+                        new GradientColorKey[] {
+                            new GradientColorKey(Color.black, 0), new GradientColorKey(Color.black, 0.45F), new GradientColorKey(Color.white, 1)
+                        },
+                        new GradientAlphaKey[] {
+                            new GradientAlphaKey(1, 0), new GradientAlphaKey(1, 1)
+                        }
+                    );
+                }
+
+                xGradient = EditorGUILayout.GradientField("X Gradient", xGradient);
+                yGradient = EditorGUILayout.GradientField("Y Gradient", yGradient);
+
+                GUILayout.BeginHorizontal();
+
+                if (GUILayout.Button("Reset X Gradient", EditorStyles.miniButtonLeft))
+                    xGradient = null;
+
+                if (GUILayout.Button("Reset Y Gradient", EditorStyles.miniButtonRight))
+                    yGradient = null;
+
+                GUILayout.EndHorizontal();
+            }
+
             if (mode == RampBakeMode.FalloffFunction)
             {
+                GUILayout.Label("Falloff Mode", centerBoldStyle);
+
                 if (curve == null)
                 {
                     // Simulate a fake inverse sqaure falloff
@@ -99,6 +164,9 @@ namespace Opal
                 if (GUILayout.Button("Reset Curve"))
                     curve = null;
             }
+
+            GUILayout.Space(5);
+            GUILayout.Label("Output", centerBoldStyle);
 
             width = EditorGUILayout.IntField("Output Width", width);
             height = EditorGUILayout.IntField("Output Height", height);
@@ -129,6 +197,23 @@ namespace Opal
                 {
                     Color color = Color.red;
                     float t = x / (float)width;
+                    
+                    if (mode == RampBakeMode.XYGradient)
+                    {
+                        for (int y = 0; y < height; y++)
+                        {
+                            float t2 = y / (float)width;
+
+                            Vector4 mix = xGradient.Evaluate(t) + yGradient.Evaluate(t2);
+                            mix = Vector4.Min(mix, Vector4.one);
+                            mix = Vector4.Max(mix, Vector4.zero);
+
+                            texture.SetPixel(x, y, mix);
+                        }
+
+                        continue;
+                    }
+
                     if (mode == RampBakeMode.Gradient)
                     {
                         color = gradient.Evaluate(t);
@@ -148,6 +233,8 @@ namespace Opal
                 }
 
                 texture.Apply();
+                texture.wrapModeU = texture.wrapModeV = TextureWrapMode.Clamp;
+
                 byte[] pixels = texture.EncodeToPNG();
 
                 string path = "";

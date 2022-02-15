@@ -80,6 +80,7 @@ namespace Opal
                 GUILayout.Space(10);
 
                 GUILayout.Label("NOTE: Disable shadows for BRDF ramps that light the back! (Ex: Crystal shading)", centerBoldStyle);
+                GUILayout.Label("NOTE2: If you're seeing orbs, change the ramp's texture filtering to 'Clamp'", centerBoldStyle);
 
                 GUILayout.Space(10);
 
