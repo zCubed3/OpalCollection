@@ -15,7 +15,7 @@
         [HDR] _EmissionColor ("Emission Color", Color) = (1.0, 1.0, 1.0, 1.0)
 
         [Header(Fixes)]
-        _NormalDepth ("Normal Depth (tweak for weird normals)", float) = 2
+        _NormalDepth ("Normal Depth (tweak for weird normals)", float) = 1
 
         [Header(Material)]
         _Roughness ("Roughness", Range(0, 1)) = 0.1
@@ -24,6 +24,8 @@
 
         [Header(Toggles)]
         [Toggle(RECIEVE_SHADOWS)] _RecieveShadowsToggle("Recieve Shadows", Int) = 1
+
+        [HideInInspector] _PBRModel ("PBR Model", int) = 0
     }
     
     CustomEditor "Opal.OpalBRDFEditor"
@@ -48,6 +50,7 @@
             #pragma shader_feature HAS_BRDF_MAP
             #pragma shader_feature HAS_BUMP_MAP
             #pragma shader_feature HAS_AO_MAP
+            #pragma shader_feature RETROREFLECTIVE
 
             #ifndef RECIEVE_SHADOWS
             #undef SHADOWS_SCREEN 
@@ -234,7 +237,7 @@
 
                 o.normal = normalize(UnityObjectToWorldNormal(v.normal));
                 o.tangent = normalize(UnityObjectToWorldDir(v.tangent));
-                o.binormal = normalize(cross(o.normal, o.tangent));
+                o.binormal = normalize(cross(o.normal, o.tangent) * v.tangent.w);
 
                 #else
 
@@ -280,10 +283,7 @@
                     light = normalize(_WorldSpaceLightPos0 - i.wPos);
                 }
 
-                half3 halfway = normalize(light + vDir);
-                half NDotH = saturate(dot(normal, halfway));
                 half NDotV = saturate(dot(normal, vDir));
-                half rawNDotL = dot(normal, light);
 
                 half clampMetallic = min(1.0, max(0.001, _Metallic));
                 half clampRoughness = min(1.0, max(0.001, _Roughness));
@@ -291,9 +291,28 @@
                 half3 F0 = lerp((0.04).xxx, color.rgb, clampMetallic);
                 half3 F = FresnelSchlickRoughness(NDotV, F0, clampRoughness);
 
+            #ifdef RETROREFLECTIVE
+                #define NO_ISOTROPIC
+
+                half3 back = reflect(-vDir, normal);
+                half3 halfway = normalize(light + back);
+                half distrib = DistributionGGX(normal, halfway, clampRoughness);
+                half smith = GeometrySmith(normal, back, light, clampRoughness);
+
+                fixed3 specular = F * smith * distrib * _LightColor0;
+            #endif
+
+            #ifndef NO_ISOTROPIC
+                half3 halfway = normalize(light + vDir);
                 half distrib = DistributionGGX(normal, halfway, clampRoughness);
                 half smith = GeometrySmith(normal, vDir, light, clampRoughness);
-                
+
+                fixed3 specular = F * smith * distrib * _LightColor0;
+            #endif
+
+                half NDotH = saturate(dot(normal, halfway));
+                half rawNDotL = dot(normal, light);
+
                 UNITY_LIGHT_ATTENUATION(atten, i, i.wPos)
 
             #ifdef HAS_BRDF_MAP
@@ -321,7 +340,6 @@
                 half ao = 1;
             #endif
 
-                fixed3 specular = F * smith * distrib * _LightColor0;
                 fixed3 brdfFinal = brdf.rgb * atten * _LightColor0 * lerp(1, F0, _Metallic);
                 brdfFinal += specular;
                 brdfFinal *= ao;
@@ -353,6 +371,7 @@
             #pragma shader_feature HAS_BRDF_MAP
             #pragma shader_feature HAS_BUMP_MAP
             #pragma shader_feature HAS_AO_MAP
+            #pragma shader_feature RETROREFLECTIVE
 
             #ifndef RECIEVE_SHADOWS
             #undef SHADOWS_SCREEN 
@@ -469,7 +488,7 @@
             #ifdef HAS_BUMP_MAP
                 o.normal = normalize(UnityObjectToWorldNormal(v.normal));
                 o.tangent = normalize(UnityObjectToWorldDir(v.tangent));
-                o.binormal = normalize(cross(o.normal, o.tangent));
+                o.binormal = normalize(cross(o.normal, o.tangent) * v.tangent.w);
             #else
                 o.normal = UnityObjectToWorldNormal(v.normal);
             #endif
@@ -511,10 +530,7 @@
                     light = normalize(_WorldSpaceLightPos0 - i.wPos);
                 }
 
-                half3 halfway = normalize(light + vDir);
-                half NDotH = saturate(dot(normal, halfway));
                 half NDotV = saturate(dot(normal, vDir));
-                half rawNDotL = dot(normal, light);
 
                 half clampMetallic = min(1.0, max(0.001, _Metallic));
                 half clampRoughness = min(1.0, max(0.001, _Roughness));
@@ -522,9 +538,28 @@
                 half3 F0 = lerp((0.04).xxx, color.rgb, clampMetallic);
                 half3 F = FresnelSchlickRoughness(NDotV, F0, clampRoughness);
 
+            #ifdef RETROREFLECTIVE
+                #define NO_ISOTROPIC
+
+                half3 back = reflect(-vDir, normal);
+                half3 halfway = normalize(light + back);
+                half distrib = DistributionGGX(normal, halfway, clampRoughness);
+                half smith = GeometrySmith(normal, back, light, clampRoughness);
+
+                fixed3 specular = F * smith * distrib * _LightColor0;
+            #endif
+
+            #ifndef NO_ISOTROPIC
+                half3 halfway = normalize(light + vDir);
                 half distrib = DistributionGGX(normal, halfway, clampRoughness);
                 half smith = GeometrySmith(normal, vDir, light, clampRoughness);
-                
+
+                fixed3 specular = F * smith * distrib * _LightColor0;
+            #endif
+
+                half NDotH = saturate(dot(normal, halfway));
+                half rawNDotL = dot(normal, light);
+
                 UNITY_LIGHT_ATTENUATION(atten, i, i.wPos)
 
             #ifdef HAS_BRDF_MAP
@@ -545,8 +580,6 @@
             #else
                 fixed4 brdf = saturate(rawNDotL);
             #endif
-
-                fixed3 specular = F * smith * distrib * _LightColor0;
 
             #ifdef HAS_AO_MAP 
                 half ao = tex2D(_OcclusionMap, i.uv).r;

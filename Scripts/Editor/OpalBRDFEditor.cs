@@ -21,6 +21,19 @@ namespace Opal
 
         public EditorPage activePage = EditorPage.BRDF;
 
+        public enum PBRModel
+        {
+            Standard, Retroreflective
+        }
+
+        public PBRModel pbrModel;
+
+        public static Dictionary<PBRModel, string> pbrModelWords = new Dictionary<PBRModel, string>()
+        {
+            { PBRModel.Standard, "" },
+            { PBRModel.Retroreflective, "RETROREFLECTIVE" },
+        };
+
 
         public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
         {
@@ -202,6 +215,25 @@ namespace Opal
                 GUIHelpers.AskFloatRange(ref material, "_Roughness", "Roughness", 0, 1);
                 GUIHelpers.AskFloatRange(ref material, "_Metallic", "Metallic", 0, 1);
                 GUIHelpers.AskFloatRange(ref material, "_Hardness", "Hardness", 0, 1);
+
+                GUILayout.BeginHorizontal();
+
+                GUILayout.Label("PBR Model", EditorStyles.boldLabel);
+                pbrModel = (PBRModel)EditorGUILayout.EnumPopup("", (PBRModel)material.GetInt("_PBRModel"));
+                material.SetInt("_PBRModel", (int)pbrModel);
+
+                GUILayout.EndHorizontal();
+
+                foreach (var pair in pbrModelWords)
+                {
+                    if (string.IsNullOrEmpty(pair.Value))
+                        continue;
+
+                    if (pair.Key == pbrModel)
+                        material.EnableKeyword(pair.Value);
+                    else
+                        material.DisableKeyword(pair.Value);
+                }
 
                 GUILayout.Space(10);
             }

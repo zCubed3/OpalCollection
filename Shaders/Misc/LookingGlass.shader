@@ -261,16 +261,14 @@
                 UNITY_LIGHT_ATTENUATION(atten, i, i.wPos)
                 spiq *= atten * S;
 
-                half3 F0 = (0.04).xxx;
-                half3 F = FresnelSchlick(NDotV, F0, _FresnelPow);
+                //half3 F = FresnelSchlick(NDotV, 0, _FresnelPow);
+                half F = pow(1 - NDotV, _FresnelPow);
 
-                half3 interDir = lerp(vDir, normal, pow(F, _InterRefractPow));
-                half3 SpinDir = normalize(mul(i.Spin, interDir));
+                half3 interDir = lerp(vDir, -normal, pow(F, _InterRefractPow));
+                //half3 interDir = refract(vDir, -normal, 0.95);
+                half3 spinDir = normalize(mul(i.Spin, interDir));
 
-                //fixed3 qube = texCUBElod(_MainTex, float4(SpinDir, fresnel.x * _MinLOD));
-                fixed3 qube = texCUBElod(_MainTex, float4(SpinDir, 0));
-                //fixed3 qube = texCUBE(_MainTex, SpinDir);
-
+                fixed3 qube = texCUBElod(_MainTex, float4(spinDir, 0));
                 //fixed3 specular = SampleSpecular(i.wPos, i.normal, _Roughness);
 
                 half mask = tex2D(_EffectMask, i.uv).r;
