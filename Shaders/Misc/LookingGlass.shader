@@ -4,6 +4,7 @@
     {
         _MainTex ("Texture", Cube) = "white" {}
         _EffectMask ("Mask", 2D) = "white" {}
+        _RoughnessMap ("Roughness Map", 2D) = "white" {}
 
         [Header(Material)]
         _FresnelPow ("Rim Frensel Pow", float) = 2
@@ -67,6 +68,7 @@
 
             samplerCUBE _MainTex;
             sampler2D _EffectMask;
+            sampler2D _RoughnessMap;
             half3 _SpinSpeed;
             half _FresnelPow, _MinLOD, _Roughness, _InterRefractPow;
             fixed3 _EdgeGlow;
@@ -250,11 +252,13 @@
                 half NDotH = saturate(dot(normal, halfway));
                 half NDotV = saturate(dot(normal, vDir));
 
-                half distrib = DistributionGGX(normal, halfway, _Roughness);
-                half smith = GeometrySmith(normal, vDir, light, _Roughness);
+                half safeRough = clamp(_Roughness * tex2D(_RoughnessMap, i.uv).r, 0.001, 1.0);
+
+                half distrib = DistributionGGX(normal, halfway, safeRough);
+                half smith = GeometrySmith(normal, vDir, light, safeRough);
                 
                 half3 S0 = (0.04).xxx;
-                half S = FresnelSchlickRoughness(NDotV, S0, _Roughness);
+                half S = FresnelSchlickRoughness(NDotV, S0, safeRough);
 
                 half spiq = smith * distrib;
 
@@ -311,6 +315,7 @@
             struct appdata
             {
                 float4 vertex : POSITION;
+                float2 uv : TEXCOORD0;
                 float3 normal : NORMAL;
 
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -321,6 +326,7 @@
                 float4 pos : SV_POSITION;
                 float3 wPos : TEXCOORD0;
                 float3 normal : NORMAL0;
+                float2 uv : TEXCOORD3;
 
                 SHADOW_COORDS(4)
                 UNITY_FOG_COORDS(5)
@@ -329,6 +335,7 @@
             };
 
             samplerCUBE _MainTex;
+            sampler2D _RoughnessMap;
             half3 _SpinSpeed;
             half _FresnelPow, _MinLOD, _Roughness, _BlinnPhongPow;
 
@@ -391,6 +398,7 @@
                 o.pos = UnityObjectToClipPos(v.vertex);
                 o.wPos = mul(unity_ObjectToWorld, v.vertex);
                 o.normal = UnityObjectToWorldNormal(v.normal);
+                o.uv = v.uv;
                 
                 TRANSFER_SHADOW(o);
                 UNITY_TRANSFER_FOG(o, o.pos);
@@ -414,11 +422,13 @@
                 half NDotH = saturate(dot(normal, halfway));
                 half NDotV = saturate(dot(normal, vDir));
 
-                half distrib = DistributionGGX(normal, halfway, _Roughness);
-                half smith = GeometrySmith(normal, vDir, light, _Roughness);
+                half safeRough = clamp(_Roughness, 0.001, 1.0) * tex2D(_RoughnessMap, i.uv).r;
+
+                half distrib = DistributionGGX(normal, halfway, safeRough);
+                half smith = GeometrySmith(normal, vDir, light, safeRough);
                 
                 half3 S0 = (0.04).xxx;
-                half S = FresnelSchlickRoughness(NDotV, S0, _Roughness);
+                half S = FresnelSchlickRoughness(NDotV, S0, safeRough);
 
                 UNITY_LIGHT_ATTENUATION(atten, i, i.wPos)
 
