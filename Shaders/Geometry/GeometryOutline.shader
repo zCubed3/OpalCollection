@@ -78,6 +78,7 @@
                 stream.RestartStrip();
 
                 for (int i = 2; i >= 0; i--) {
+                //for (int i = 0; i < 3; i++) {
                     g2f o;
                     v2g v = input[i];
 

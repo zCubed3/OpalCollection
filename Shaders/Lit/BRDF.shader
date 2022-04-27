@@ -15,12 +15,16 @@
         [HDR] _EmissionColor ("Emission Color", Color) = (1.0, 1.0, 1.0, 1.0)
 
         [Header(Fixes)]
-        _NormalDepth ("Normal Depth (tweak for weird normals)", float) = 1
+        _NormalDepth ("Normal Depth (tweak for weird normals)", Float) = 1.0
 
         [Header(Material)]
         _Roughness ("Roughness", Range(0, 1)) = 0.1
         _Metallic ("Metallic", Range(0, 1)) = 0
         _Hardness ("Light Hardness", Range(0, 1)) = 1.0
+
+        [Header(Detail Maps)]
+        _DetailBumpMap ("Detail Normal", 2D) = "bump" {}
+        _DetailBumpScale ("Detail Normal Scale", Float) = 1.0
 
         [Header(Toggles)]
         [Toggle(RECIEVE_SHADOWS)] _RecieveShadowsToggle("Recieve Shadows", Int) = 1
@@ -100,8 +104,10 @@
             };
 
             sampler2D _MainTex, _BumpMap, _EmissionMap, _OcclusionMap;
+            sampler2D _DetailBumpMap;
             sampler2D _BRDFTex;
             half _Roughness, _Hardness, _Metallic, _NormalDepth;
+            half _DetailBumpScale;
             fixed3 _EmissionColor, _Color;
 
             #define PI 3.141592654
@@ -265,13 +271,17 @@
                 float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv));
                 rawNormal.z = _NormalDepth;
 
+                float3 rawDetailNormal = UnpackNormal(tex2D(_DetailBumpMap, i.uv));
+                rawDetailNormal.z = _DetailBumpScale;
+
                 float3x3 tan2World = float3x3(
 					i.tangent,
 					i.binormal,
 					i.normal
 				);
 
-                half3 normal = normalize(mul(rawNormal, tan2World));
+                half3 normal = float3(rawNormal.xy / rawNormal.z + rawDetailNormal.xy / rawDetailNormal.z, 1);
+                normal = normalize(mul(normal, tan2World));
             #else
                 half3 normal = normalize(i.normal);
             #endif
@@ -316,10 +326,11 @@
                 UNITY_LIGHT_ATTENUATION(atten, i, i.wPos)
 
             #ifdef HAS_BRDF_MAP
+                // BRDF implementation is ported from the zero lab renderer!
                 float brdfX = 0;
                 float brdfY = NDotV;
-
-                if (_Hardness < 1){
+                
+                if (_Hardness < 1) {
 			        float HardnessHalfed = _Hardness * 0.5;
 			        brdfX = max(0.0, ((rawNDotL * HardnessHalfed) + 1 - HardnessHalfed));	
                 } else {			

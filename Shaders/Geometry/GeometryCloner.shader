@@ -59,7 +59,7 @@
                 return o;
             }
 
-            [maxvertexcount(99)]
+            [maxvertexcount(15)]
             void geom(triangle v2g input[3], inout TriangleStream<g2f> stream) {
                 for (int i = 0; i < 3; i++) {
                     g2f o;
@@ -75,7 +75,7 @@
 
                 stream.RestartStrip();
 
-                for (int d = 0; d < 8; d++) {
+                for (int d = 0; d < 1; d++) {
                     for (int s = 0; s < 4; s++) {
                         float f = s / 4.0;
                         f *= 3.141592654 * 2;
@@ -147,7 +147,7 @@
                 return o;
             }
 
-            [maxvertexcount(99)]
+            [maxvertexcount(15)]
             void geom(triangle v2g input[3], inout TriangleStream<g2f> stream) {
                 for (int i = 0; i < 3; i++) {
                     g2f o;
@@ -160,7 +160,7 @@
 
                 stream.RestartStrip();
 
-                for (int d = 0; d < 8; d++) {
+                for (int d = 0; d < 1; d++) {
                     for (int s = 0; s < 4; s++) {
                         float f = s / 4.0;
                         f *= 3.141592654 * 2;

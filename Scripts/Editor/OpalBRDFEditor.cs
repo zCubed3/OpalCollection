@@ -16,22 +16,22 @@ namespace Opal
 
         public enum EditorPage
         {
-            BRDF, PBR, Toggles
+            BRDF, Surface, Toggles
         }
 
         public EditorPage activePage = EditorPage.BRDF;
 
-        public enum PBRModel
+        public enum SurfaceModel
         {
             Standard, Retroreflective
         }
 
-        public PBRModel pbrModel;
+        public SurfaceModel pbrModel;
 
-        public static Dictionary<PBRModel, string> pbrModelWords = new Dictionary<PBRModel, string>()
+        public static Dictionary<SurfaceModel, string> pbrModelWords = new Dictionary<SurfaceModel, string>()
         {
-            { PBRModel.Standard, "" },
-            { PBRModel.Retroreflective, "RETROREFLECTIVE" },
+            { SurfaceModel.Standard, "" },
+            { SurfaceModel.Retroreflective, "RETROREFLECTIVE" },
         };
 
 
@@ -78,8 +78,8 @@ namespace Opal
             if (GUILayout.Button("BRDF", EditorStyles.miniButtonLeft))
                 activePage = EditorPage.BRDF;
 
-            if (GUILayout.Button("PBR", EditorStyles.miniButtonMid))
-                activePage = EditorPage.PBR;
+            if (GUILayout.Button("Surface", EditorStyles.miniButtonMid))
+                activePage = EditorPage.Surface;
 
             if (GUILayout.Button("Toggles", EditorStyles.miniButtonRight))
                 activePage = EditorPage.Toggles;
@@ -176,9 +176,9 @@ namespace Opal
                 }
             }
 
-            if (activePage == EditorPage.PBR)
+            if (activePage == EditorPage.Surface)
             {
-                GUILayout.Label("PBR", centerBoldBiggerStyle);
+                GUILayout.Label("Surface", centerBoldBiggerStyle);
 
                 GUILayout.Space(10);
                 GUILayout.Label("Albedo", centerBoldStyle);
@@ -212,14 +212,21 @@ namespace Opal
 
                 GUILayout.Space(10);
 
+                GUILayout.Label("Detail Maps", centerBoldStyle);
+                GUIHelpers.AskTexture(ref material, "_DetailBumpMap", "Detail Normal Map");
+                GUIHelpers.AskFloat(ref material, "_DetailBumpScale", "Detail Normal Scale");
+
+                GUILayout.Space(10);
+
+                GUILayout.Label("Material", centerBoldStyle);
                 GUIHelpers.AskFloatRange(ref material, "_Roughness", "Roughness", 0, 1);
                 GUIHelpers.AskFloatRange(ref material, "_Metallic", "Metallic", 0, 1);
                 GUIHelpers.AskFloatRange(ref material, "_Hardness", "Hardness", 0, 1);
 
                 GUILayout.BeginHorizontal();
 
-                GUILayout.Label("PBR Model", EditorStyles.boldLabel);
-                pbrModel = (PBRModel)EditorGUILayout.EnumPopup("", (PBRModel)material.GetInt("_PBRModel"));
+                GUILayout.Label("Surface Model", EditorStyles.boldLabel);
+                pbrModel = (SurfaceModel)EditorGUILayout.EnumPopup("", (SurfaceModel)material.GetInt("_PBRModel"));
                 material.SetInt("_PBRModel", (int)pbrModel);
 
                 GUILayout.EndHorizontal();

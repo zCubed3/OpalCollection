@@ -36,12 +36,12 @@
         Tags { "RenderType"="Transparent" "Queue"="Transparent+100" }
         LOD 100
         ZWrite Off
-        Cull Off
-        ZTest Off
 
         GrabPass {}
         Pass
         {
+            Cull Front
+            ZTest Off
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
