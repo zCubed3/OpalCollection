@@ -181,10 +181,12 @@ namespace Opal
                 GUILayout.Label("Surface", centerBoldBiggerStyle);
 
                 GUILayout.Space(10);
-                GUILayout.Label("Albedo", centerBoldStyle);
+                GUILayout.Label("Base Map", centerBoldStyle);
 
                 GUIHelpers.AskTexture(ref material, "_MainTex", "Main Texture");
                 GUIHelpers.AskColor(ref material, "_Color", "Color");
+
+                GUIHelpers.AskScaleOffsetInfo(ref material, "_MainTex", "Scale and Offset");
 
                 GUILayout.Space(10);
                 GUILayout.Label("Bump Mapping", centerBoldStyle);
@@ -213,8 +215,10 @@ namespace Opal
                 GUILayout.Space(10);
 
                 GUILayout.Label("Detail Maps", centerBoldStyle);
-                GUIHelpers.AskTexture(ref material, "_DetailBumpMap", "Detail Normal Map");
+                //GUIHelpers.AskTexture(ref material, "_DetailAlbedo", "Detail Albedo");
                 GUIHelpers.AskFloat(ref material, "_DetailBumpScale", "Detail Normal Scale");
+                GUIHelpers.AskTexture(ref material, "_DetailBumpMap", "Detail Normal Map");
+                GUIHelpers.AskScaleOffsetInfo(ref material, "_DetailAlbedo", "Scale and Offset");
 
                 GUILayout.Space(10);
 

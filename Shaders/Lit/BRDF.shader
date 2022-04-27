@@ -23,6 +23,7 @@
         _Hardness ("Light Hardness", Range(0, 1)) = 1.0
 
         [Header(Detail Maps)]
+        _DetailAlbedo ("Detail Albedo", 2D) = "black" {}
         _DetailBumpMap ("Detail Normal", 2D) = "bump" {}
         _DetailBumpScale ("Detail Normal Scale", Float) = 1.0
 
@@ -85,7 +86,7 @@
             struct v2f
             {
                 float4 pos : SV_POSITION;
-                float2 uv : TEXCOORD0;
+                float4 uv : TEXCOORD0;
                 float3 wPos : TEXCOORD1;
 
                 float3 normal : NORMAL0;
@@ -103,8 +104,10 @@
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
+            float4 _MainTex_ST;
+            float4 _DetailAlbedo_ST;
             sampler2D _MainTex, _BumpMap, _EmissionMap, _OcclusionMap;
-            sampler2D _DetailBumpMap;
+            sampler2D _DetailAlbedo, _DetailBumpMap;
             sampler2D _BRDFTex;
             half _Roughness, _Hardness, _Metallic, _NormalDepth;
             half _DetailBumpScale;
@@ -251,7 +254,9 @@
                 
                 #endif
 
-                o.uv = v.uv;
+                float2 uv = TRANSFORM_TEX(v.uv, _MainTex);
+                float2 uv2 = TRANSFORM_TEX(v.uv, _DetailAlbedo);
+                o.uv = float4(uv, uv2);
                 o.ambient = ShadeSH9(float4(UnityObjectToWorldNormal(v.normal), 1));
 
                 TRANSFER_SHADOW(o);
@@ -268,10 +273,10 @@
                 color.rgb *= _Color;
 
             #ifdef HAS_BUMP_MAP         
-                float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv));
+                float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv.xy));
                 rawNormal.z = _NormalDepth;
 
-                float3 rawDetailNormal = UnpackNormal(tex2D(_DetailBumpMap, i.uv));
+                float3 rawDetailNormal = UnpackNormal(tex2D(_DetailBumpMap, i.uv.zw));
                 rawDetailNormal.z = _DetailBumpScale;
 
                 float3x3 tan2World = float3x3(
@@ -411,7 +416,7 @@
             struct v2f
             {
                 float4 pos : SV_POSITION;
-                float2 uv : TEXCOORD0;
+                float4 uv : TEXCOORD0;
                 float3 wPos : TEXCOORD1;
 
                 float3 normal : NORMAL0;
@@ -427,10 +432,14 @@
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
-            sampler2D _MainTex, _BumpMap, _OcclusionMap;
+            float4 _MainTex_ST;
+            float4 _DetailAlbedo_ST;
+            sampler2D _MainTex, _BumpMap, _EmissionMap, _OcclusionMap;
+            sampler2D _DetailAlbedo, _DetailBumpMap;
             sampler2D _BRDFTex;
             half _Roughness, _Hardness, _Metallic, _NormalDepth;
-            fixed3 _Color;
+            half _DetailBumpScale;
+            fixed3 _EmissionColor, _Color;
 
             #define PI 3.141592654
 
@@ -504,7 +513,9 @@
                 o.normal = UnityObjectToWorldNormal(v.normal);
             #endif
 
-                o.uv = v.uv;
+                float2 uv = TRANSFORM_TEX(v.uv, _MainTex);
+                float2 uv2 = TRANSFORM_TEX(v.uv, _DetailAlbedo);
+                o.uv = float4(uv, uv2);
 
                 TRANSFER_SHADOW(o);
                 UNITY_TRANSFER_FOG(o, o.pos);
@@ -520,8 +531,11 @@
                 color.rgb *= _Color;
                 
             #ifdef HAS_BUMP_MAP                
-                float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv));
+                float3 rawNormal = UnpackNormal(tex2D(_BumpMap, i.uv.xy));
                 rawNormal.z = _NormalDepth;
+
+                float3 rawDetailNormal = UnpackNormal(tex2D(_DetailBumpMap, i.uv.zw));
+                rawDetailNormal.z = _DetailBumpScale;
 
                 float3x3 tan2World = float3x3(
 					i.tangent,
@@ -529,7 +543,8 @@
 					i.normal
 				);
 
-                half3 normal = normalize(mul(rawNormal, tan2World));
+                half3 normal = float3(rawNormal.xy / rawNormal.z + rawDetailNormal.xy / rawDetailNormal.z, 1);
+                normal = normalize(mul(normal, tan2World));
             #else
                 half3 normal = normalize(i.normal);
             #endif

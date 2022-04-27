@@ -70,5 +70,29 @@ namespace Opal
 
             GUILayout.EndHorizontal();
         }
+
+        public static void AskScaleOffsetInfo(ref Material material, string property, string name)
+        {
+            GUILayout.Label(name, EditorStyles.boldLabel);
+
+            Vector2 offset = material.GetTextureOffset(property);
+            Vector2 scale = material.GetTextureScale(property);
+
+            GUILayout.BeginHorizontal();
+
+            offset.x = EditorGUILayout.FloatField(offset.x);
+            offset.y = EditorGUILayout.FloatField(offset.y);
+            material.SetTextureOffset(property, offset);
+
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+
+            scale.x = EditorGUILayout.FloatField(scale.x);
+            scale.y = EditorGUILayout.FloatField(scale.y);
+            material.SetTextureScale(property, scale);
+
+            GUILayout.EndHorizontal();
+        }
     }
 }
